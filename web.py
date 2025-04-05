@@ -2,40 +2,62 @@ import streamlit as st
 import numpy as np
 import pickle
 
-# Load models and encoders
-rf_exercise = pickle.load(open("exercise_model.pkl", "rb"))
-rf_food = pickle.load(open("food_model.pkl", "rb"))
-rf_selfcare = pickle.load(open("selfcare_model.pkl", "rb"))
+# Load models
+with open("exercise_model.pkl", "rb") as f:
+    rf_exercise = pickle.load(f)
 
-le_phase = pickle.load(open("phase_encoder.pkl", "rb"))
-le_energy = pickle.load(open("energy_encoder.pkl", "rb"))
-le_symptom = pickle.load(open("symptom_encoder.pkl", "rb"))
+with open("food_model.pkl", "rb") as f:
+    rf_food = pickle.load(f)
 
-st.set_page_config(page_title="Menstrual Lifestyle Tips", layout="centered")
+with open("selfcare_model.pkl", "rb") as f:
+    rf_selfcare = pickle.load(f)
 
-st.markdown("## 🌸 Menstrual Lifestyle Tips Predictor")
-st.markdown("Personalized tips based on your cycle phase, energy level, and symptoms.")
+# Load encoders
+with open("phase_encoder.pkl", "rb") as f:
+    le_phase = pickle.load(f)
 
-# User input
-phase = st.selectbox("Cycle Phase", le_phase.classes_)
-energy = st.selectbox("Energy Level", le_energy.classes_)
-symptoms = st.multiselect("Select Your Symptoms", le_symptom.classes_)
+with open("energy_encoder.pkl", "rb") as f:
+    le_energy = pickle.load(f)
 
-if st.button("Get Tips"):
-    if len(symptoms) == 0:
+with open("symptom_encoder.pkl", "rb") as f:
+    le_symptom = pickle.load(f)
+
+# Title and description
+st.set_page_config(page_title="Period Lifestyle Tips", layout="centered")
+st.title("🌸 Period Lifestyle Tips")
+st.markdown("Get **personalized, detailed** tips on exercise, food, and self-care based on your cycle phase, energy, and symptoms.")
+
+# Input
+cycle_phase = st.selectbox("Cycle Phase", le_phase.classes_)
+energy_level = st.selectbox("Energy Level", le_energy.classes_)
+symptoms = st.multiselect("Symptoms (select one or more)", le_symptom.classes_)
+
+# Prediction function
+def predict_tips(phase, energy, symptoms):
+    phase_encoded = le_phase.transform([phase])[0]
+    energy_encoded = le_energy.transform([energy])[0]
+
+    if not symptoms:
         st.warning("Please select at least one symptom.")
-    else:
-        phase_encoded = le_phase.transform([phase])[0]
-        energy_encoded = le_energy.transform([energy])[0]
-        symptom_encoded = [le_symptom.transform([s])[0] for s in symptoms]
-        symptom_avg = int(np.mean(symptom_encoded))
+        return None, None, None
 
-        input_data = np.array([[phase_encoded, energy_encoded, symptom_avg]])
+    symptom_encoded = [le_symptom.transform([s])[0] for s in symptoms]
+    avg_symptom = np.mean(symptom_encoded)
 
-        exercise_tip = rf_exercise.predict(input_data)[0]
-        food_tip = rf_food.predict(input_data)[0]
-        selfcare_tip = rf_selfcare.predict(input_data)[0]
+    input_data = np.array([[phase_encoded, energy_encoded, avg_symptom]])
 
-        st.success("### 💪 Exercise Tip\n" + exercise_tip)
-        st.success("### 🥗 Food Remedy\n" + food_tip)
-        st.success("### 🧘 Self-Care Tip\n" + selfcare_tip)
+    exercise_tip = rf_exercise.predict(input_data)[0]
+    food_tip = rf_food.predict(input_data)[0]
+    selfcare_tip = rf_selfcare.predict(input_data)[0]
+
+    return exercise_tip, food_tip, selfcare_tip
+
+# Button and output
+if st.button("Get Tips"):
+    exercise, food, selfcare = predict_tips(cycle_phase, energy_level, symptoms)
+
+    if exercise:
+        st.markdown(f"### 💪 Exercise Tip\n{exercise}")
+        st.markdown(f"### 🥗 Food Remedy\n{food}")
+        st.markdown(f"### 🧘 Self-Care Tip\n{selfcare}")
+
